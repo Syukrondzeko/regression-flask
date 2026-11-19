@@ -1,49 +1,84 @@
-from flask import Flask, request, render_template
-import numpy as np
-import pandas as pd
+import os
 import pickle
+
+import pandas as pd
+from flask import Flask, render_template, request
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "decision_tree_regressor.pkl")
+TRANSFORMER_PATH = os.path.join(BASE_DIR, "transformer.pkl")
 
 app = Flask(__name__)
 
-# Load both the model and the transformer
-model = pickle.load(open('decision_tree_regressor.pkl', 'rb'))
-transformer = pickle.load(open('transformer.pkl', 'rb'))
+# Load the trained model and the fitted preprocessing transformer
+with open(MODEL_PATH, "rb") as f:
+    model = pickle.load(f)
+with open(TRANSFORMER_PATH, "rb") as f:
+    transformer = pickle.load(f)
 
-@app.route('/')
-def hello_world():
-    return render_template("health_bill.html")
+# The category values the model was trained on, read from the fitted encoder so
+# the form options can never drift out of sync with the model.
+_encoder = transformer.named_transformers_["one_hot"]
+CHOICES = {
+    column: [str(value) for value in categories]
+    for column, categories in zip(_encoder.feature_names_in_, _encoder.categories_)
+}
 
-@app.route('/predict', methods=['POST', 'GET'])
+MIN_AGE = 1
+MAX_AGE = 120
+
+
+def render_page(pred=None, error=None, form=None, status=200):
+    return (
+        render_template(
+            "health_bill.html",
+            choices=CHOICES,
+            pred=pred,
+            error=error,
+            form=form or {},
+            min_age=MIN_AGE,
+            max_age=MAX_AGE,
+        ),
+        status,
+    )
+
+
+def validate(form):
+    """Return (features, error). Exactly one of them is None."""
+    age = form.get("Age", type=int)
+    if age is None or not MIN_AGE <= age <= MAX_AGE:
+        return None, f"Please enter an age between {MIN_AGE} and {MAX_AGE}."
+
+    features = {"Age": age}
+    for field, column in (
+        ("Gender", "Gender"),
+        ("BloodType", "Blood Type"),
+        ("MedicalCondition", "Medical Condition"),
+    ):
+        value = form.get(field)
+        if value not in CHOICES[column]:
+            return None, f"Please select a valid {column.lower()}."
+        features[column] = value
+
+    return features, None
+
+
+@app.route("/")
+def index():
+    return render_page()
+
+
+@app.route("/predict", methods=["POST"])
 def predict():
-    # Collect input features from the form, ensuring all inputs are present
-    age = request.form.get('Age', type=int)
-    if age is None or age < 1:
-        return render_template('health_bill.html', pred='Please enter a valid age.')
+    features, error = validate(request.form)
+    if error:
+        return render_page(error=error, form=request.form, status=400)
 
-    gender = request.form.get('Gender')
-    blood_type = request.form.get('BloodType')
-    medical_condition = request.form.get('MedicalCondition')
-    
-    # Create a DataFrame from the input features to match the expected input for the transformer
-    input_df = pd.DataFrame([{
-        'Age': age,
-        'Gender': gender,
-        'Blood Type': blood_type,
-        'Medical Condition': medical_condition
-    }])
-    
-    # Ensure no None values - handle missing inputs as needed
-    if input_df.isnull().values.any():
-        return render_template('health_bill.html', pred='Please fill in all required fields.')
-    
-    # Preprocess the inputs using the transformer
-    transformed_features = transformer.transform(input_df)
-    
-    # Predict using the preprocessed features
-    prediction = model.predict(transformed_features)
-    output = round(prediction[0], 2)
-    
-    return render_template('health_bill.html', pred=f'Predicted Billing Amount is {output}')
+    transformed = transformer.transform(pd.DataFrame([features]))
+    prediction = float(model.predict(transformed)[0])
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    return render_page(pred=f"{prediction:,.2f}", form=request.form)
+
+
+if __name__ == "__main__":
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")

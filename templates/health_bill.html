@@ -4,89 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Billing Amount Prediction</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-    <!-- Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <a class="navbar-brand" href="#">BillingPredict</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ml-auto">
-                <li class="nav-item active">
-                    <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#">About</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#">Contact</a>
-                </li>
-            </ul>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">BillingPredict</a>
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <div class="container mt-5">
-        <!-- Hero Section -->
-        <div class="jumbotron">
-            <div class="container">
-                <h1 class="display-4">Billing Prediction</h1>
-                <p class="lead">Estimate the billing amount based on patient information.</p>
-                <!-- Other content -->
-            </div>
+    <main class="container mt-5">
+        <div class="hero p-4 p-md-5 mb-4">
+            <h1 class="display-5">Billing Prediction</h1>
+            <p class="lead mb-0">Estimate the billing amount based on patient information.</p>
         </div>
 
-        <!-- Prediction Form -->
-        <form action='/predict' method="post">
-            <div class="form-row">
-                <div class="col-md-3 mb-3">
-                    <label for="age">Age</label>
-                    <input type="number" class="form-control" id="age" name="Age" placeholder="Age" min="1" required>
+        {% macro select(id, name, label, options) %}
+            <label for="{{ id }}" class="form-label">{{ label }}</label>
+            <select class="form-select" id="{{ id }}" name="{{ name }}" required>
+                <option value="">Select {{ label }}</option>
+                {% for option in options %}
+                    <option value="{{ option }}" {% if form.get(name) == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            </select>
+        {% endmacro %}
+
+        <form action="{{ url_for('predict') }}" method="post">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label for="age" class="form-label">Age</label>
+                    <input type="number" class="form-control" id="age" name="Age" placeholder="Age"
+                           min="{{ min_age }}" max="{{ max_age }}" value="{{ form.get('Age', '') }}" required>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label for="gender">Gender</label>
-                    <select class="form-control" id="gender" name="Gender" required>
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <!-- Add other gender options if necessary -->
-                    </select>
+                <div class="col-md-3">
+                    {{ select('gender', 'Gender', 'Gender', choices['Gender']) }}
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label for="bloodType">Blood Type</label>
-                    <select class="form-control" id="bloodType" name="BloodType" required>
-                        <option value="">Select Blood Type</option>
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="AB">AB</option>
-                        <option value="O">O</option>
-                        <!-- Add other blood type options if necessary -->
-                    </select>
+                <div class="col-md-3">
+                    {{ select('bloodType', 'BloodType', 'Blood Type', choices['Blood Type']) }}
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label for="medicalCondition">Medical Condition</label>
-                    <input type="text" class="form-control" id="medicalCondition" name="MedicalCondition" placeholder="Medical Condition" required>
+                <div class="col-md-3">
+                    {{ select('medicalCondition', 'MedicalCondition', 'Medical Condition', choices['Medical Condition']) }}
                 </div>
             </div>
-            <button class="btn btn-primary" type="submit">Predict Billing Amount</button>
+            <button class="btn btn-primary mt-3" type="submit">Predict Billing Amount</button>
         </form>
 
-        <!-- Prediction Result -->
-        <div class="prediction-result mt-4">
-            <!-- Display prediction result here -->
-            {{ pred }}
-        </div>
-    </div>
+        {% if error %}
+            <div class="alert alert-danger mt-4" role="alert">{{ error }}</div>
+        {% elif pred %}
+            <div class="prediction-result mt-4">
+                Predicted Billing Amount is <strong>{{ pred }}</strong>
+            </div>
+        {% endif %}
+    </main>
 
-    <!-- Bootstrap JS, Popper.js, and jQuery -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.9.3/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
